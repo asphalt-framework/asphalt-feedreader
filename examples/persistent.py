@@ -22,14 +22,14 @@ class FeedReaderApp(CLIApplicationComponent):
     async def start(self, ctx: Context):
         self.add_component('sqlalchemy', url='sqlite:///store.db')
         self.add_component('feedreader', url=self.url, interval=self.interval,
-                           store=dict(backend='sqlalchemy'))
+                           store='default', stores=dict(backend='sqlalchemy'))
         await super().start(ctx)
 
     async def run(self, ctx: Context):
         async with aclosing(ctx.feed.entry_discovered.stream_events()) as stream:
             async for event in stream:
-                print('------\npublished: {event.published}\ntitle: {event.title}\n'
-                      'url: {event.link}'.format(event=event))
+                print('------\npublished: {entry.published}\ntitle: {entry.title}\n'
+                      'url: {entry.link}'.format(entry=event.entry))
 
 
 @click.command()

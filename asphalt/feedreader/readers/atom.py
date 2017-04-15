@@ -1,13 +1,11 @@
 import logging
 from string import whitespace
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 
-from asphalt.core import Signal
 from dateutil.parser import parse
 from defusedxml import ElementTree
 
-from asphalt.feedreader.events import EntryEvent
-from asphalt.feedreader.readers.base import BaseFeedReader
+from asphalt.feedreader.readers.base import BaseFeedReader, FeedEntry
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +25,7 @@ class Person:
         return NotImplemented
 
 
-class AtomEntryEvent(EntryEvent):
+class AtomEntry(FeedEntry):
     """
     Represents an entry from an Atom feed.
 
@@ -41,10 +39,9 @@ class AtomEntryEvent(EntryEvent):
 
     __slots__ = ('content', 'content_type', 'authors', 'contributors', 'updated')
 
-    def __init__(self, source, topic: str, *, content: str = None, content_type: str = None,
-                 updated: str = None, authors: List[Person] = (), contributors: List[Person] = (),
-                 **kwargs):
-        super().__init__(source, topic, **kwargs)
+    def __init__(self, *, content: str = None, content_type: str = None, updated: str = None,
+                 authors: List[Person] = (), contributors: List[Person] = (), **kwargs):
+        super().__init__(**kwargs)
         self.content = content
         self.content_type = content_type
         self.authors = tuple(authors)
@@ -57,26 +54,29 @@ class AtomFeedReader(BaseFeedReader):
 
     NAMESPACE = '{http://www.w3.org/2005/Atom}'
 
-    entry_discovered = Signal(AtomEntryEvent)
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.http_headers.setdefault('accept', 'application/rss+atom; text/xml')
 
     @classmethod
-    def can_parse(cls, document: str, content_type: str) -> bool:
+    def can_parse(cls, document: str, content_type: str) -> Optional[str]:
         if content_type not in ('application/atom+xml', 'text/xml'):
-            return False
+            return ("Incompatible content type (got %r, needs to be either 'application/atom+xml' "
+                    "or 'text/xml')" % content_type)
 
         try:
             root = ElementTree.fromstring(document)
-        except ElementTree.ParseError:
-            return False
+        except ElementTree.ParseError as e:
+            return 'Error parsing the document as XML: %s' % e
 
-        return root.tag == cls.NAMESPACE + 'feed'
+        if root.tag != cls.NAMESPACE + 'feed':
+            return ('Incompatible root tag (got <%s>, needs to be <feed> in the %s namespace)' %
+                    (root.tag, cls.NAMESPACE[1:-1]))
+
+        return None
 
     @classmethod
-    def parse_document(cls, document: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    def parse_document(cls, document: str) -> Tuple[Dict[str, Any], List[FeedEntry]]:
         root = ElementTree.fromstring(document)
         metadata_changes = {}
         for tag in root:
@@ -94,7 +94,7 @@ class AtomFeedReader(BaseFeedReader):
                 if tag.attrib.get('rel') == 'alternate':
                     metadata_changes['link'] = tag.attrib['href']
 
-        events = []  # type: List[Dict[str, Any]]
+        events = []  # type: List[AtomEntry]
         for entry in root.iter(cls.NAMESPACE + 'entry'):
             kwargs = {}
             for tag in entry:
@@ -128,7 +128,7 @@ class AtomFeedReader(BaseFeedReader):
                     kwargs.setdefault('contributors', []).append(Person(**attrs))
 
             if 'id' in kwargs:
-                events.insert(0, kwargs)
+                events.insert(0, AtomEntry(**kwargs))
             else:
                 logger.warning('Encountered entry without an "id" element')
 

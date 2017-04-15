@@ -6,6 +6,7 @@ Science.
 
 Checking is done on 5 minute intervals by default and is adjustable with the -i/--interval option.
 
+You must have ``lxml`` and ``beautifulsoup4`` installed for this to work.
 """
 
 import re
@@ -14,35 +15,39 @@ from urllib.parse import urlparse
 
 import click
 from asphalt.core import CLIApplicationComponent, Context, run_application
+from asphalt.feedreader import FeedEntry, BaseFeedReader
 from async_generator import aclosing
 from dateutil.parser import parse
 from lxml.html import soupparser
-
-from asphalt.feedreader.readers.base import BaseFeedReader
 
 lse_path_re = re.compile(r'/Events/\d{4}/\d{2}/(.+?)/')
 
 
 class LSEFeedReader(BaseFeedReader):
     @classmethod
-    def parse_document(cls, document: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    def parse_document(cls, document: str) -> Tuple[Dict[str, Any], List[FeedEntry]]:
         # Use BeautifulSoup to parse the document
         root = soupparser.fromstring(document, features='html.parser')
 
+        # The entries we seek are all contained in a single <div> element with class="largeList"
+        # and each entry is contained within an <a> element
         entries = []
         for a in root.xpath('.//div[@class="largeList"]/a'):
-            entry = {}
+            kwargs = {}
+
+            # The "title" attribute in each <a> element contains the URL, from which we also
+            # extract the unique entry ID
             url = urlparse(a.attrib['title'])
             match = lse_path_re.match(url.path)
             if not match:
                 continue
 
-            entry['id'] = match.group(1)
-            entry['title'] = a.findtext('.//h2').strip()
-            entry['link'] = a.attrib['title']
-            entry['published'] = parse(a.find('.//time').attrib['datetime'])
-            entry['enclosure_url'] = a.find('.//img').attrib['src']
-            entries.append(entry)
+            kwargs['id'] = match.group(1)
+            kwargs['title'] = a.findtext('.//h2').strip()
+            kwargs['link'] = a.attrib['title']
+            kwargs['published'] = parse(a.find('.//time').attrib['datetime'])
+            kwargs['enclosure_url'] = a.find('.//img').attrib['src']
+            entries.append(FeedEntry(**kwargs))
 
         return {}, entries
 
@@ -55,14 +60,15 @@ class CustomFeedReaderApp(CLIApplicationComponent):
         self.interval = interval
 
     async def start(self, ctx: Context):
-        self.add_component('feedreader', url=self.URL, kind=LSEFeedReader, interval=self.interval)
+        self.add_component('feedreader', url=self.URL, reader=LSEFeedReader,
+                           interval=self.interval)
         await super().start(ctx)
 
     async def run(self, ctx: Context):
         async with aclosing(ctx.feed.entry_discovered.stream_events()) as stream:
             async for event in stream:
-                print('------\npublished: {event.published}\ntitle: {event.title}\n'
-                      'url: {event.link}'.format(event=event))
+                print('------\npublished: {entry.published}\ntitle: {entry.title}\n'
+                      'url: {entry.link}'.format(entry=event.entry))
 
 
 @click.command()

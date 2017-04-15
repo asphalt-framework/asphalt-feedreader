@@ -10,6 +10,7 @@ Table of contents
 
    configuration
    usage
+   customfeeds
    versionhistory
 
 * :ref:`API reference <modindex>`

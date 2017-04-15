@@ -1,17 +1,29 @@
 from abc import ABCMeta, abstractmethod
+from typing import Awaitable, Dict, Any, Optional
+
 from asphalt.core import Context, Signal
-from typing import Awaitable, Dict, Any
 
 from asphalt.feedreader.events import EntryEvent, MetadataEvent
 from asphalt.feedreader.metadata import FeedMetadata
 
 
 class FeedReader(metaclass=ABCMeta):
+    """
+    Interface for feed readers.
+
+    :var entry_discovered: a signal dispatched when a resource has been published in this context
+    :vartype entry_discovered: Signal[EntryEvent]
+    :var metadata_changed: a signal dispatched when the feed metadata has been changed
+    :vartype metadata_changed: Signal[MetadataEvent]
+    :ivar str url: the feed URL
+    """
+
     entry_discovered = Signal(EntryEvent)
     metadata_changed = Signal(MetadataEvent)
+    url = None  # type: str
 
     @abstractmethod
-    def start(self, ctx: Context) -> Awaitable:
+    def start(self, ctx: Context) -> Awaitable[None]:
         """
         Initialize the feed.
 
@@ -40,27 +52,32 @@ class FeedReader(metaclass=ABCMeta):
         """Return the feed's metadata."""
 
     @abstractmethod
-    def update(self) -> Awaitable:
+    def update(self) -> Awaitable[None]:
         """Read the feed from the source and dispatch any events necessary."""
 
     @classmethod
-    def can_parse(cls, document: str, content_type: str) -> bool:
+    def can_parse(cls, document: str, content_type: str) -> Optional[str]:
         """
-        Return ``True`` if this parser can parse this document, ``False`` otherwise.
+        Determine if this reader class is suitable for parsing the given document as a feed.
 
-        This method is only used for autodetection of feed type (ie. when the feed parser has not
+        This method is only used for autodetection of feed type by
+        :func:`~asphalt.feedreader.component.create_feed` (ie. when the feed parser has not
         been specified). Autodetection is skipped when the feed parser has been explicitly given.
 
         :param document: document loaded from the feed URL
         :param content_type: MIME type of the loaded document
+        :return: the reason why this class cannot parse the given document, or ``None`` if it can
+            parse it
 
         """
-        return False
+        return 'Autodetection not implemented for this class'
 
 
 class FeedStateStore(metaclass=ABCMeta):
+    """Interface for feed state stores."""
+
     @abstractmethod
-    def start(self, ctx: Context) -> Awaitable:
+    def start(self, ctx: Context) -> Awaitable[None]:
         """Initialize the store."""
 
     @abstractmethod
@@ -68,5 +85,5 @@ class FeedStateStore(metaclass=ABCMeta):
         """Load the named state from the store."""
 
     @abstractmethod
-    def store_state(self, state_id: str, state: Dict[str, Any]) -> Awaitable:
+    def store_state(self, state_id: str, state: Dict[str, Any]) -> Awaitable[None]:
         """Add or update the indicated state in the store."""

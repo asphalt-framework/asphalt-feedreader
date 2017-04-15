@@ -1,18 +1,16 @@
 import logging
 from string import whitespace
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Optional
 
-from asphalt.core import Signal
 from dateutil.parser import parse
 from defusedxml import ElementTree
 
-from asphalt.feedreader.events import EntryEvent
-from asphalt.feedreader.readers.base import BaseFeedReader
+from asphalt.feedreader.readers.base import BaseFeedReader, FeedEntry
 
 logger = logging.getLogger(__name__)
 
 
-class RSSEntryEvent(EntryEvent):
+class RSSEntry(FeedEntry):
     """
     Represents an entry from an RSS feed.
 
@@ -24,8 +22,8 @@ class RSSEntryEvent(EntryEvent):
 
     __slots__ = ('author', 'comments')
 
-    def __init__(self, source, topic: str, *, author: str = None, comments: str = None, **kwargs):
-        super().__init__(source, topic, **kwargs)
+    def __init__(self, *, author: str = None, comments: str = None, **kwargs):
+        super().__init__(**kwargs)
         self.author = author
         self.comments = comments
 
@@ -37,27 +35,33 @@ class RSSFeedReader(BaseFeedReader):
     :param respect_rate_limits: respect the rate limits (if any) set by the publisher
     """
 
-    entry_discovered = Signal(RSSEntryEvent)
-
     def __init__(self, respect_rate_limits: bool = True, **kwargs):
         super().__init__(**kwargs)
         self.http_headers.setdefault('accept', 'application/rss+xml; text/xml')
         self.respect_rate_limits = respect_rate_limits
 
     @classmethod
-    def can_parse(cls, document: str, content_type: str) -> bool:
+    def can_parse(cls, document: str, content_type: str) -> Optional[str]:
         if content_type not in ('application/rss+xml', 'text/xml'):
-            return False
+            return ("Incompatible content type (got %r, needs to be either 'application/rss+xml' "
+                    "or 'text/xml')" % content_type)
 
         try:
             root = ElementTree.fromstring(document)
-        except ElementTree.ParseError:
-            return False
+        except ElementTree.ParseError as e:
+            return 'Error parsing the document as XML: %s' % e
 
-        return root.tag == 'rss' and root.attrib.get('version') == '2.0'
+        if root.tag != 'rss':
+            return 'Incompatible root tag (got <%s>, needs to be <rss>)' % root.tag
+        if 'version' not in root.attrib:
+            return 'No "version" tag present in the <rss> element'
+        if root.attrib.get('version') != '2.0':
+            return "Incompatible RSS version (got %r, needs to be '2.0')" % root.attrib['version']
+
+        return None
 
     @classmethod
-    def parse_document(cls, document: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+    def parse_document(cls, document: str) -> Tuple[Dict[str, Any], List[FeedEntry]]:
         root = ElementTree.fromstring(document)
         if root.tag != 'rss':
             raise ValueError('XML root tag was "%s"; expected "rss"' % root.tag)
@@ -78,7 +82,7 @@ class RSSFeedReader(BaseFeedReader):
             elif tag.tag == 'lastBuildDate':
                 metadata['updated'] = parse(tag_text)
 
-        events = []  # type: List[Dict[str, Any]]
+        events = []  # type: List[RSSEntry]
         for item in channel.iter('item'):
             kwargs = {}
             for tag in item:
@@ -100,7 +104,7 @@ class RSSFeedReader(BaseFeedReader):
                     kwargs.setdefault('categories', []).append(tag.text)
 
             if 'id' in kwargs:
-                events.insert(0, kwargs)
+                events.insert(0, RSSEntry(**kwargs))
             else:
                 logger.warning('Encountered item without a "guid" element')
 

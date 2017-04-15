@@ -5,12 +5,12 @@
   :target: https://coveralls.io/github/asphalt-framework/asphalt-feedreader?branch=master
   :alt: Code Coverage
 
-This Asphalt framework component provides the ability to parse syndication feeds like RSS_ and
-Atom_.
+This Asphalt framework component provides the ability to monitor syndication feeds like RSS_ and
+Atom_. Arbitrary HTML pages can also be scraped as feeds by means of a custom feed reader class.
 
 Each feed is polled periodically and subscribers are notified of any newly published
-entries. There is also support for persisting the state of each feed in various kinds of databases.
-Arbitrary HTML pages can also be scraped as feeds by means of a custom feed reader class.
+entries. There is also support for persisting the state of each feed, so as not to report old
+items again when the application is restarted.
 
 .. _RSS: http://cyber.harvard.edu/rss/rss.html
 .. _Atom: https://tools.ietf.org/html/rfc4287

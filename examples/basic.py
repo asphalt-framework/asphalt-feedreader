@@ -24,8 +24,8 @@ class FeedReaderApp(CLIApplicationComponent):
     async def run(self, ctx: Context):
         async with aclosing(ctx.feed.entry_discovered.stream_events()) as stream:
             async for event in stream:
-                print('------\npublished: {event.published}\ntitle: {event.title}\n'
-                      'url: {event.link}'.format(event=event))
+                print('------\npublished: {entry.published}\ntitle: {entry.title}\n'
+                      'url: {entry.link}'.format(entry=event.entry))
 
 
 @click.command()

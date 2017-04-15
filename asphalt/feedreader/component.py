@@ -1,12 +1,10 @@
-from typing import Dict, Type, Union
+import logging
+from typing import Dict, Type, Union, Any
 
 import aiohttp
-import logging
-
-from asphalt.core import Component, Context, PluginContainer, merge_config
+from asphalt.core import Component, Context, PluginContainer, merge_config, qualified_name
 from typeguard import check_argument_types
 
-from asphalt.core.utils import qualified_name
 from asphalt.feedreader.api import FeedReader
 
 feed_readers = PluginContainer('asphalt.feedreader.readers')
@@ -14,52 +12,69 @@ feed_stores = PluginContainer('asphalt.feedreader.stores')
 logger = logging.getLogger(__name__)
 
 
-async def create_feed(url: str, kind: Union[str, Type[FeedReader]] = None,
-                      **config) -> FeedReader:
+async def create_feed(ctx: Context, reader: Union[str, Type[FeedReader]] = None,
+                      **reader_args) -> FeedReader:
     """
-    Create a syndication feed.
+    Create and start a syndication feed.
 
-    The returned feed needs to be started (using :meth:`~asphalt.feedreader.api.FeedReader.start`).
+    .. note:: This function does **NOT** add the feed to the context as a resource.
 
-    :param url: the address of the feed
-    :param kind: either a feed reader class or the entry point name of one, or ``None`` to
-        attempt automatic detection of the feed type
-    :param config: keyword arguments passed to the feed reader class
+    :param ctx: a context object (passed to the :meth:`~asphalt.feedreader.api.FeedReader.start`
+        method)
+    :param reader: specifies the feed reader class by one of the following means:
+
+       * a subclass of :class:`~asphalt.feedreader.api.FeedReader`
+       * the entry point name of one
+       * a ``module:varname`` reference to one
+       * ``None`` to attempt automatic detection of the feed type
+    :param reader_args: keyword arguments passed to the feed reader class
     :return: a feed reader
 
     """
     assert check_argument_types()
-    if isinstance(kind, type):
-        feed_class = kind
-    elif kind:
-        feed_class = feed_readers.resolve(kind)
+    if isinstance(reader, type):
+        feed_class = reader
+    elif reader:
+        feed_class = feed_readers.resolve(reader)
     else:
+        try:
+            url = reader_args['url']
+        except KeyError:
+            raise LookupError('no "url" option was specified – it is required for feed reader '
+                              'autodetection') from None
+
         feed_class = None
         async with aiohttp.request('GET', url) as response:
             response.raise_for_status()
             text = await response.text()
             for cls in feed_readers.all():
-                if cls.can_parse(text, response.content_type):
+                logger.info('Attempting autodetection of feed reader class for %s', url)
+                reason = cls.can_parse(text, response.content_type)
+                if reason:
+                    logger.info('%s: %s', qualified_name(cls), reason)
+                else:
+                    logger.info('Selected reader class %s for %s', qualified_name(cls), url)
                     feed_class = cls
+                    break
+            else:
+                raise RuntimeError('unable to detect the feed type for url: ' + url)
 
-    if feed_class:
-        return feed_class(url=url, **config)
-    else:
-        raise RuntimeError('unable to detect the feed type for url: ' + url)
+    feed = feed_class(**reader_args)
+    await feed.start(ctx)
+    return feed
 
 
 class FeedReaderComponent(Component):
     """
     Creates :class:`~asphalt.feedreader.api.FeedReader` resources.
 
-    :param feeds: a dictionary of resource name ⭢ feed configuration
+    :param feeds: a dictionary of resource name ⭢ keyword arguments to :func:`~.create_feed`
     :param stores: a dictionary of resource name ⭢ feed state store configuration
-    :param feed_defaults: defaults for keyword arguments passed to the constructors of the chosen
-        feed class(es)
+    :param feed_defaults: defaults for keyword arguments passed to the  :func:`~.create_feed`
     """
 
-    def __init__(self, feeds: Dict[str, dict] = None, stores: Dict[str, dict] = None,
-                 **feed_defaults):
+    def __init__(self, feeds: Dict[str, Dict[str, Any]] = None,
+                 stores: Dict[str, Dict[str, Any]] = None, **feed_defaults):
         assert check_argument_types()
         if not feeds:
             feed_defaults.setdefault('context_attr', 'feed')
@@ -85,8 +100,7 @@ class FeedReaderComponent(Component):
                         qualified_name(store))
 
         for resource_name, context_attr, config in self.feeds:
-            feed = await create_feed(**config)
-            await feed.start(ctx)
-            ctx.add_resource(feed, resource_name, context_attr)
+            feed = await create_feed(ctx, **config)
+            ctx.add_resource(feed, resource_name, context_attr, types=[type(feed), FeedReader])
             logger.info('Configured feed (%s / ctx.%s; url=%s)', resource_name, context_attr,
                         feed.url)

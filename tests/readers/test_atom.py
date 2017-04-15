@@ -1,6 +1,22 @@
 from datetime import datetime, timezone, timedelta
+from typing import cast
 
-from asphalt.feedreader.readers.atom import AtomFeedReader, AtomEntryEvent, Person
+import pytest
+
+from asphalt.feedreader.readers.atom import AtomFeedReader, Person, AtomEntry
+
+
+@pytest.mark.parametrize('document, content_type, error', [
+    ('<feed></feed>', 'text/html',
+     "Incompatible content type (got 'text/html', needs to be either 'application/atom+xml' "
+     "or 'text/xml')"),
+    ('brdytgrdt', 'text/xml', 'Error parsing the document as XML: syntax error: line 1, column 0'),
+    ('<foo></foo>', 'text/xml', ('Incompatible root tag (got <foo>, needs to be <feed> in the '
+                                 'http://www.w3.org/2005/Atom namespace)')),
+    ('<feed xmlns="http://www.w3.org/2005/Atom"></feed>', 'application/atom+xml', None)
+], ids=['content_type', 'xml_error', 'root_tag', 'all_ok'])
+def test_can_parse(document, content_type, error):
+    assert AtomFeedReader.can_parse(document, content_type) == error
 
 
 def test_parse_document():
@@ -63,7 +79,7 @@ def test_parse_document():
     }
 
     assert len(events) == 1
-    event = AtomEntryEvent(None, '', **events[0])
+    event = cast(AtomEntry, events[0])
     assert event.id == 'tag:example.org,2003:3.2397'
     assert event.title == 'Dummy Entry Title'
     assert event.link == 'http://example.org/2005/04/02/atom'

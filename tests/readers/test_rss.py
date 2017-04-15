@@ -1,6 +1,25 @@
 from datetime import datetime, timezone
+from typing import cast
 
-from asphalt.feedreader.readers.rss import RSSFeedReader, RSSEntryEvent
+import pytest
+
+from asphalt.feedreader.readers.rss import RSSFeedReader, RSSEntry
+
+
+@pytest.mark.parametrize('document, content_type, error', [
+    ('<feed></feed>', 'text/html',
+     "Incompatible content type (got 'text/html', needs to be either 'application/rss+xml' "
+     "or 'text/xml')"),
+    ('brdytgrdt', 'text/xml', 'Error parsing the document as XML: syntax error: line 1, column 0'),
+    ('<foo></foo>', 'text/xml', 'Incompatible root tag (got <foo>, needs to be <rss>)'),
+    ('<rss><channel></channel></rss>', 'application/rss+xml',
+     'No "version" tag present in the <rss> element'),
+    ('<rss version="1.0"><channel></channel></rss>', 'application/rss+xml',
+     "Incompatible RSS version (got '1.0', needs to be '2.0')"),
+    ('<rss version="2.0"><channel></channel></rss>', 'application/rss+xml', None)
+], ids=['content_type', 'xml_error', 'root_tag', 'no_version', 'wrong_version', 'all_ok'])
+def test_can_parse(document, content_type, error):
+    assert RSSFeedReader.can_parse(document, content_type) == error
 
 
 def test_parse_document():
@@ -35,7 +54,7 @@ def test_parse_document():
 
     # Check that the events were parsed right
     assert len(events) == 1
-    event = RSSEntryEvent(None, '', **events[0])
+    event = cast(RSSEntry, events[0])
     assert event.id == '1231230'
     assert event.title == 'Dummy Item Title'
     assert event.link == 'https://www.example.org/item1'
