@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Type, Union, Any
+from typing import Dict, Union, Any
 
 import aiohttp
 from asphalt.core import Component, Context, PluginContainer, merge_config, qualified_name
@@ -12,8 +12,7 @@ feed_stores = PluginContainer('asphalt.feedreader.stores')
 logger = logging.getLogger(__name__)
 
 
-async def create_feed(ctx: Context, reader: Union[str, Type[FeedReader]] = None,
-                      **reader_args) -> FeedReader:
+async def create_feed(ctx: Context, reader: Union[str, type] = None, **reader_args) -> FeedReader:
     """
     Create and start a syndication feed.
 
