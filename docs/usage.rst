@@ -17,7 +17,7 @@ Or, if you prefer callbacks::
     ctx.feed.entry_discovered.connect(new_entry_found)
 
 .. note:: Each feed reader class may have its own set of entry attributes beyond the ones in
-    :class:`~asphalt.feedreader.events.EntryEvent`. See the API documentation for each individual
+    :class:`~asphalt.feedreader.metadata.FeedEntry`. See the API documentation for each individual
     feed reader class.
 
 Creating new feeds on the fly

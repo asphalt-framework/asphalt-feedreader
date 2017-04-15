@@ -11,7 +11,17 @@ logger = logging.getLogger(__name__)
 
 
 class Person:
-    """Represent an author or contributor in an Atom feed entry."""
+    """
+    Represents an author or contributor in an Atom feed entry.
+
+    The following parameters are also available as instance attributes:
+
+    :param name: the full name of the person
+    :param email: the person's email address
+    :param uri: URI of the person's home page (or similar web page)
+    """
+
+    __slots__ = ('name', 'email', 'uri')
 
     def __init__(self, name: str, email: str = None, uri: str = None):
         self.name = name
@@ -23,6 +33,9 @@ class Person:
             return self.name == other.name and self.email == other.email and self.uri == other.uri
 
         return NotImplemented
+
+    def __ne__(self, other):
+        return not self == other
 
 
 class AtomEntry(FeedEntry):
