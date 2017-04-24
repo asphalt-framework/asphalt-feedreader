@@ -4,6 +4,8 @@ Using feed readers
 Feed readers are used by listening to their ``entry_discovered`` and ``metadata_changed`` signals.
 To continuously print new entries as they come in, just stream events from the signal::
 
+    from async_generator import aclosing
+
     async def print_events(ctx):
         async with aclosing(ctx.feed.entry_discovered.stream_events()) as stream:
             async for event in stream:
