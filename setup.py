@@ -40,6 +40,10 @@ setup(
         'typeguard ~= 2.0'
     ],
     extras_require={
+        'redis': [
+            'asphalt-serialization ~= 4.0',
+            'asphalt-redis ~= 2.0'
+        ],
         'sqlalchemy': [
             'asphalt-serialization ~= 4.0',
             'asphalt-sqlalchemy ~= 3.0'
@@ -56,7 +60,8 @@ setup(
             'feedreader = asphalt.feedreader.component:FeedReaderComponent'
         ],
         'asphalt.feedreader.stores': [
-            'sqlalchemy = asphalt.feedreader.stores.sqlalchemy:SQLAlchemyStore [sqlalchemy]'
+            'sqlalchemy = asphalt.feedreader.stores.sqlalchemy:SQLAlchemyStore [sqlalchemy]',
+            'redis = asphalt.feedreader.stores.redis:RedisStore [redis]'
         ],
         'asphalt.feedreader.readers': [
             'atom = asphalt.feedreader.readers.atom:AtomFeedReader',

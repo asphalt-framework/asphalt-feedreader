@@ -81,8 +81,12 @@ class FeedStateStore(metaclass=ABCMeta):
         """Initialize the store."""
 
     @abstractmethod
-    def load_state(self, state_id: str) -> Awaitable[Dict[str, Any]]:
-        """Load the named state from the store."""
+    def load_state(self, state_id: str) -> Awaitable[Optional[Dict[str, Any]]]:
+        """
+        Load the named state from the store.
+
+        :return: the requested state, or ``None`` if it is not found
+        """
 
     @abstractmethod
     def store_state(self, state_id: str, state: Dict[str, Any]) -> Awaitable[None]:

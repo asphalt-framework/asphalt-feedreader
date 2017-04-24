@@ -32,7 +32,7 @@ def webapp(event_loop, unused_tcp_port):
     app.router.add_get('/atom', atom_handler)
     handler = app.make_handler(loop=event_loop)
     server = event_loop.run_until_complete(
-        event_loop.create_server(handler, host='localhost', port=unused_tcp_port))
+        event_loop.create_server(handler, host='127.0.0.1', port=unused_tcp_port))
     yield
     server.close()
     event_loop.run_until_complete(server.wait_closed())

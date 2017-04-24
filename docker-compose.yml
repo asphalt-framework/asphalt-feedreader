@@ -1,0 +1,16 @@
+# Docker-like setup that serves as a local drop-in for the corresponding Travis services
+version: "2"
+services:
+  test:
+    build: .
+    user: 1000:1000
+    links:
+      - redis
+    volumes:
+      - .:/app
+    working_dir: /app
+    environment:
+      REDIS_HOST: redis
+
+  redis:
+    image: redis
