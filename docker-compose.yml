@@ -6,11 +6,16 @@ services:
     user: 1000:1000
     links:
       - redis
+      - mongodb
     volumes:
       - .:/app
     working_dir: /app
     environment:
       REDIS_HOST: redis
+      MONGODB_HOST: mongodb
 
   redis:
     image: redis
+
+  mongodb:
+    image: mongo

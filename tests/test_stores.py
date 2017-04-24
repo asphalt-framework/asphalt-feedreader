@@ -2,7 +2,10 @@ import os
 
 import pytest
 from aioredis import create_reconnecting_redis
+from motor.motor_asyncio import AsyncIOMotorClient
+
 from asphalt.core import Context
+from asphalt.feedreader.stores.mongodb import MongoDBStore
 from asphalt.feedreader.stores.redis import RedisStore
 from asphalt.serialization.api import Serializer
 from asphalt.serialization.serializers.json import JSONSerializer
@@ -33,7 +36,7 @@ def serializer(context, direct_resources):
         return serializer
 
 
-@pytest.fixture(params=['sqlalchemy', 'redis'])
+@pytest.fixture(params=['sqlalchemy', 'redis', 'mongodb'])
 def store(request, event_loop, context, direct_resources, serializer):
     if request.param == 'sqlalchemy':
         engine = create_engine('sqlite:///:memory:', connect_args={'check_same_thread': False},
@@ -53,6 +56,15 @@ def store(request, event_loop, context, direct_resources, serializer):
             redis = 'default'
 
         store_ = RedisStore(client=redis, serializer=serializer)
+    elif request.param == 'mongodb':
+        host = os.getenv('MONGODB_HOST', 'localhost')
+        client = AsyncIOMotorClient(host=host)
+        context.add_teardown_callback(client.close)
+        if not direct_resources:
+            context.add_resource(client)
+            client = 'default'
+
+        store_ = MongoDBStore(client=client, serializer=serializer)
 
     event_loop.run_until_complete(store_.start(context))
     return store_
