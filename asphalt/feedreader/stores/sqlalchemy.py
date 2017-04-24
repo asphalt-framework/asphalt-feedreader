@@ -46,13 +46,15 @@ class SQLAlchemyStore(FeedStateStore):
 
     @executor
     def store_state(self, feed_id: str, state) -> None:
-        query = self.feeds_table.update().where(id=feed_id).values(state=state)
+        serialized = self.serializer.serialize(state)
+        query = self.feeds_table.update().where(self.feeds_table.c.id == feed_id).\
+            values(state=serialized)
         if self.engine.execute(query).rowcount == 0:
-            query = self.feeds_table.insert().values(id=feed_id, state=state)
+            query = self.feeds_table.insert().values(id=feed_id, state=serialized)
             self.engine.execute(query)
 
     @executor
     def load_state(self, feed_id: str):
-        query = select(self.feeds_table.c.state).where(self.feeds_table.c.id == feed_id)
+        query = select([self.feeds_table.c.state]).where(self.feeds_table.c.id == feed_id)
         serialized = self.engine.scalar(query)
-        return self.serializer.deserialize(serialized)
+        return self.serializer.deserialize(serialized) if serialized is not None else None
