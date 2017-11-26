@@ -1,22 +1,55 @@
+language: python
 sudo: false
 
-language: python
+stages:
+  - name: test
+  - name: deploy to pypi
+    if: type = push AND tag =~ ^\d+\.\d+\.\d+
 
-services:
-  - redis
-  - mongodb
+jobs:
+  fast_finish: true
+  include:
+    - env: TOXENV=flake8
 
-python:
-  - "3.5"
-  - "3.6"
+    - env: TOXENV=mypy
 
-install: pip install tox-travis coveralls
+    - env: TOXENV=pypy3
+      cache: pip
+      python: pypy3
+
+    - env: TOXENV=py35
+      after_success: &after_success
+        - pip install coveralls
+        - coveralls
+
+    - env: TOXENV=py36
+      python: "3.6"
+      after_success: *after_success
+
+    - stage: deploy to pypi
+      install: pip install "setuptools >= 36.2.7"
+      script: skip
+      deploy:
+        provider: pypi
+        user: agronholm
+        password:
+          secure: a4sUKJK8GzbFT7J7Fvz2i5u2AkXc+ZxdDbdBwkf8p5U2R2x+fTLvWlx9w8hecFmKKsET9mRaSJc4R+6pj1XHDK+xQR51xs24zoDXEOaNV8RSCWhzvPG1Xz46eoO71NJeuqomXkpmVWrWqKYYCbwyM1uU8dlaW22fWKiqdQAhbGCN4t1pYLKYwqw5AUbMIL7VeC7d9wE6EcCmRJVxttDt31eEONvnSMSLO/LI1faxnQXkIxpzE+z5HMFpOu0wZBh56OZnixQQHowS0GfqbXf730CgQU2y3YiZw0oV+65llk9jePf16eeztaRZAKf7foVeKdnNbbAMfky23KB7m//cPiUT4wAJoXR/cX18s+StmIVMQSRsrZHv/xY1j7rrHs5FPedlnZ8aLybylzpDMDSoaPd8127bBxdbpOwO+cSHvA0Ic+fg/Cf0cR6jKjlsRBEKwFbHaDi84eLYl9X1g9OfpuMDdM0LysT6t2q5wsA9f/P31MvzyVG6KfPY2W6CdMmsyWKYePED/6JPBLzazfgccbZS0TkFiyLB/+LpKdxS+xOBO5hB6FMlUeiF0DvYb0zTaFbj4va36+7Kr+kjb/+BTWEtQCHV4tq4ff3+EensRYCTYRHMvQ4akX2fVcovew8ztbt9bXazEqqJ32MyT22Fa/8532hF2KtI31Q4WvKn6XM=
+        distributions: sdist bdist_wheel
+        on:
+          tags: true
+
+python: "3.5"
+
+install:
+  - pip install "setuptools >= 36.2.7"
+  - pip install tox
 
 script: tox
 
-after_success: coveralls
-
 notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/aa5a289b7a0df8aefd68
   irc:
     channels:
       - "chat.freenode.net#asphalt"
@@ -24,14 +57,3 @@ notifications:
     on_failure: change
     use_notice: true
     skip_join: true
-
-deploy:
-  provider: pypi
-  user: agronholm
-  password:
-    secure: a4sUKJK8GzbFT7J7Fvz2i5u2AkXc+ZxdDbdBwkf8p5U2R2x+fTLvWlx9w8hecFmKKsET9mRaSJc4R+6pj1XHDK+xQR51xs24zoDXEOaNV8RSCWhzvPG1Xz46eoO71NJeuqomXkpmVWrWqKYYCbwyM1uU8dlaW22fWKiqdQAhbGCN4t1pYLKYwqw5AUbMIL7VeC7d9wE6EcCmRJVxttDt31eEONvnSMSLO/LI1faxnQXkIxpzE+z5HMFpOu0wZBh56OZnixQQHowS0GfqbXf730CgQU2y3YiZw0oV+65llk9jePf16eeztaRZAKf7foVeKdnNbbAMfky23KB7m//cPiUT4wAJoXR/cX18s+StmIVMQSRsrZHv/xY1j7rrHs5FPedlnZ8aLybylzpDMDSoaPd8127bBxdbpOwO+cSHvA0Ic+fg/Cf0cR6jKjlsRBEKwFbHaDi84eLYl9X1g9OfpuMDdM0LysT6t2q5wsA9f/P31MvzyVG6KfPY2W6CdMmsyWKYePED/6JPBLzazfgccbZS0TkFiyLB/+LpKdxS+xOBO5hB6FMlUeiF0DvYb0zTaFbj4va36+7Kr+kjb/+BTWEtQCHV4tq4ff3+EensRYCTYRHMvQ4akX2fVcovew8ztbt9bXazEqqJ32MyT22Fa/8532hF2KtI31Q4WvKn6XM=
-  distributions: sdist bdist_wheel
-  on:
-    tags: true
-    python: "3.5"
-    repo: asphalt-framework/asphalt-feedreader
